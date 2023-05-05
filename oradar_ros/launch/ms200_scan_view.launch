@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <include file="$(find oradar_lidar)/launch/ms200_scan.launch" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find oradar_lidar)/rviz/oradar_scan.rviz" />
+</launch>

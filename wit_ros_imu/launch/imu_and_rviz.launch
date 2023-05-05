@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <include file="$(find wit_ros_imu)/launch/imu.launch" />
+  <!-- load rviz -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find wit_ros_imu)/rviz/wit_ros_imu.rviz" />
+</launch>

@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="lgv_description" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find lgv_description)/urdf/lgv_description.gazebo.xacro" />
+
+  <link name="base_footprint" />
+  <joint name="base_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="base_footprint" />
+    <child link="base_link" />
+  </joint>
+
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.0051486 -8.3197E-17 0.057614"
+        rpy="0 0 0" />
+      <mass
+        value="2.3698" />
+      <inertia
+        ixx="0.0048439"
+        ixy="-1.2254E-06"
+        ixz="0.00012196"
+        iyy="0.017191"
+        iyz="-2.5177E-17"
+        izz="0.019545" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/base_link.stl" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/base_link.stl" />
+      </geometry>
+    </collision>
+  </link>
+
+  <link
+    name="wheel1_link">
+    <inertial>
+      <origin
+        xyz="1.8055E-05 0.0053283 -9.8397E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.10267" />
+      <inertia
+        ixx="4.7266E-05"
+        ixy="-2.4751E-08"
+        ixz="2.1566E-08"
+        iyy="5.5972E-05"
+        iyz="2.2833E-07"
+        izz="4.7315E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_b.stl" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_b.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="wheel1_joint"
+    type="continuous">
+    <origin
+      xyz="0.09265 -0.1 0.0375"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel1_link" />
+    <axis
+      xyz="0 -1 0" />
+  </joint>
+
+  <link
+    name="wheel2_link">
+    <inertial>
+      <origin
+        xyz="7.6188E-05 0.0053276 6.4831E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.10267" />
+      <inertia
+        ixx="4.7321E-05"
+        ixy="-1.8536E-07"
+        ixz="1.0534E-08"
+        iyy="5.597E-05"
+        iyz="-1.356E-07"
+        izz="4.7259E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_a.stl" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_a.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="wheel2_joint"
+    type="continuous">
+    <origin
+      xyz="0.09265 0.1 0.0375"
+      rpy="0 0 3.1416" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel2_link" />
+    <axis
+      xyz="0 -1 0" />
+  </joint>
+
+  <link
+    name="wheel3_link">
+    <inertial>
+      <origin
+        xyz="1.8055E-05 0.0053283 -9.8397E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.10267" />
+      <inertia
+        ixx="4.7266E-05"
+        ixy="-2.4751E-08"
+        ixz="2.1566E-08"
+        iyy="5.5972E-05"
+        iyz="2.2833E-07"
+        izz="4.7315E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_b.stl" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_b.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="wheel3_joint"
+    type="continuous">
+    <origin
+      xyz="-0.09265 0.1 0.0375"
+      rpy="0 0 -3.1416" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel3_link" />
+    <axis
+      xyz="0 -1 0" />
+  </joint>
+
+  <link
+    name="wheel4_link">
+    <inertial>
+      <origin
+        xyz="7.6188E-05 0.0053276 6.4831E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.10267" />
+      <inertia
+        ixx="4.7321E-05"
+        ixy="-1.8536E-07"
+        ixz="1.0534E-08"
+        iyy="5.597E-05"
+        iyz="-1.356E-07"
+        izz="4.7259E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_a.stl" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/mecanum_a.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="wheel4_joint"
+    type="continuous">
+    <origin
+      xyz="-0.09265 -0.1 0.0375"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel4_link" />
+    <axis
+      xyz="0 -1 0" />
+  </joint>
+
+  <link
+    name="laser_link">
+    <inertial>
+      <origin
+        xyz="2.5004E-05 9.8944E-05 -0.010825"
+        rpy="0 0 0" />
+      <mass
+        value="0.03847" />
+      <inertia
+        ixx="7.051E-06"
+        ixy="-1.6082E-07"
+        ixz="9.4959E-09"
+        iyy="7.1035E-06"
+        iyz="3.9968E-08"
+        izz="7.612E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/laser_link.stl" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.61176 0.6 0.52157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/laser_link.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="laser_joint"
+    type="fixed">
+    <origin
+      xyz="0.090854 0 0.1468"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="laser_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+  <link
+    name="imu_link">
+    <inertial>
+      <origin
+        xyz="-0.013012 2.4152E-16 -0.0031696"
+        rpy="0 0 0" />
+      <mass
+        value="0.0076309" />
+      <inertia
+        ixx="8.6773E-07"
+        ixy="4.9763E-21"
+        ixz="-5.4021E-08"
+        iyy="1.33E-06"
+        iyz="-4.6852E-21"
+        izz="2.0198E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/imu_link.stl" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://lgv_description/meshes/imu_link.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="imu_joint"
+    type="fixed">
+    <origin
+      xyz="0.06135 0 0.1321"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="imu_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+</robot>

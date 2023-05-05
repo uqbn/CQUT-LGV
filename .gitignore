@@ -1,0 +1,11 @@
+# Visual Studio Code
+.vscode/
+
+# clangd
+.cache/
+
+# catkin
+/CMakeLists.txt
+/format
+/env.sh
+/upload
