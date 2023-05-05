@@ -1,0 +1,20 @@
+# Visual Studio Code
+.vscode/
+
+# clangd
+.cache/
+
+# make
+.xmake/
+build/
+
+# Keil
+MDK-ARM/EventRecorderStub.scvd
+MDK-ARM/DebugConfig
+MDK-ARM/RTE
+MDK-ARM/lgv
+*.uvguix.*
+*.lst
+
+# STM32CobeMX
+.mxproject
