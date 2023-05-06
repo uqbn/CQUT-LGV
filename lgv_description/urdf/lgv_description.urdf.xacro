@@ -2,10 +2,10 @@
 <robot name="lgv_description" xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:include filename="$(find lgv_description)/urdf/lgv_description.gazebo.xacro" />
 
-  <link name="base_footprint" />
+  <link name="dummy" />
   <joint name="base_joint" type="fixed">
     <origin xyz="0 0 0" rpy="0 0 0" />
-    <parent link="base_footprint" />
+    <parent link="dummy" />
     <child link="base_link" />
   </joint>
 
