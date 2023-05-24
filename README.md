@@ -11,3 +11,38 @@
 | 1P    | PE9  | 2P    | PE11 | 3P    | PE13 | 4P    | PE14 |
 
 </p>
+
+```c
+#include <stdio.h>
+int main(void)
+{
+  unsigned char const *p;
+
+  short pos = +1000;
+  short neg = -1000;
+
+  p = (unsigned char const *)&pos;
+  printf("FF FF %02hx %02hx 00 00 00 00\n", p[0] & 0xFF, p[1] & 0xFF);
+  p = (unsigned char const *)&neg;
+  printf("FF FF %02hx %02hx 00 00 00 00\n", p[0] & 0xFF, p[1] & 0xFF);
+
+  p = (unsigned char const *)&pos;
+  printf("FF FF 00 00 %02hx %02hx 00 00\n", p[0] & 0xFF, p[1] & 0xFF);
+  p = (unsigned char const *)&neg;
+  printf("FF FF 00 00 %02hx %02hx 00 00\n", p[0] & 0xFF, p[1] & 0xFF);
+
+  p = (unsigned char const *)&pos;
+  printf("FF FF 00 00 00 00 %02hx %02hx\n", p[0] & 0xFF, p[1] & 0xFF);
+  p = (unsigned char const *)&neg;
+  printf("FF FF 00 00 00 00 %02hx %02hx\n", p[0] & 0xFF, p[1] & 0xFF);
+
+  pos = +100;
+  neg = -100;
+  p = (unsigned char const *)&pos;
+  printf("FF FF %02hx %02hx 00 00 00 00\n", p[0] & 0xFF, p[1] & 0xFF);
+  p = (unsigned char const *)&neg;
+  printf("FF FF %02hx %02hx 00 00 00 00\n", p[0] & 0xFF, p[1] & 0xFF);
+
+  return 0;
+}
+```

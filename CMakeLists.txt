@@ -1,8 +1,8 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/UseArmNoneEabi.cmake)
-set(CMAKE_BUILD_TYPE Debug CACHE STRING "")
 cmake_minimum_required(VERSION 2.8.12...4.0)
-project(lgv VERSION 0.1.0 LANGUAGES C CXX ASM)
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "")
+project(lgv VERSION 0.1.0 LANGUAGES C ASM)
 
 find_package(OpenOCD)
 set(CMAKE_C_STANDARD 11)
@@ -40,10 +40,10 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC USE_HAL_DRIVER ${STM32_FAMILY}
 target_compile_options(${PROJECT_NAME} PUBLIC
   -mcpu=${MCPU} -mthumb -fdata-sections -ffunction-sections -Wall -Wextra -Wpedantic
 )
-target_link_libraries(${PROJECT_NAME} c m nosys)
-target_link_options(${PROJECT_NAME} PUBLIC
+target_link_libraries(${PROJECT_NAME} PRIVATE a c m nosys)
+target_link_options(${PROJECT_NAME} PRIVATE
   -Wl,-gc-sections,--print-memory-usage,-Map=${PROJECT_NAME}.map,--cref
-  -mcpu=${MCPU} -mthumb --specs=nano.specs -T${STM32_LINKER}
+  -mcpu=${MCPU} -mthumb --specs=nano.specs -T${STM32_LINKER} -u_printf_float
 )
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
   COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${PROJECT_NAME}> ${PROJECT_NAME}.bin
@@ -57,3 +57,11 @@ add_custom_target(flash
 add_custom_target(reset
   COMMAND ${OPENOCD_EXECUTABLE} -f ${STM32_OPENOCD} -c init -c halt -c reset -c shutdown
 )
+
+set(LIBA_CXX 0 CACHE BOOL "Disable C++")
+set(LIBA_FLOAT 4 CACHE STRING "floating-point number bytes")
+add_subdirectory(liba)
+target_compile_options(a PRIVATE
+  -mcpu=${MCPU} -mthumb -fdata-sections -ffunction-sections
+)
+target_link_libraries(${PROJECT_NAME} PRIVATE a)

@@ -9,11 +9,12 @@
 #include "io.h"
 
 #include "dma.h"
-#include "iwdg.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 #include "main.h"
+
+#include "a/fpid.h"
 
 exec_s exec[1] = {{
   .exti = 0,
@@ -26,87 +27,146 @@ exec_s exec[1] = {{
 static void exec_led(void *argv)
 {
   gpio_pin_toggle(LEDG_GPIO_Port, LEDG_Pin);
-  HAL_IWDG_Refresh(&hiwdg);
   (void)argv;
 }
 
 static struct
 {
-  int32_t total;
-  int32_t delta;
-  float speed;
-  float write;
-} motor[4] = {
+  uint16_t count[4];
+  int32_t total[4];
+  int32_t delta[4];
+  float speed[4];
+  float write[4];
+} motor = {
+  {0, 0, 0, 0},
   {0, 0, 0, 0},
   {0, 0, 0, 0},
   {0, 0, 0, 0},
   {0, 0, 0, 0},
 };
-
-typedef struct pid4_s
+static struct
 {
-  float kp;     //!< proportional constant
-  float ki;     //!< integral constant
-  float kd;     //!< derivative constant
-  float e[4];   //!< error input
-  float fdb[4]; //!< cache feedback
-  float sum[4]; //!< (integral) output item sum
-  float out[4]; //!< controller output
-  float summax; //!< maximum final output
-  float outmax; //!< maximum integral output
-} pid4_s;
+  a_fpid_s ctx;
+  float out[4];
+  float fdb[4];
+  float sum[4];
+  float ec[4];
+  float e[4];
+  float const me[29];
+  float const mec[29];
+  float const mkp[49];
+  float const mki[49];
+  float const mkd[49];
+  a_uint_t idx[A_FPID_IDX(2)];
+  float val[A_FPID_VAL(2)];
+} chassis = {
+#undef NB
+#undef NM
+#undef NS
+#undef ZO
+#undef PS
+#undef PM
+#undef PB
+#define NB -3 * S
+#define NM -2 * S
+#define NS -1 * S
+#define ZO +0 * S
+#define PS +1 * S
+#define PM +2 * S
+#define PB +3 * S
+#undef S
+#define S 0.4F
+  .me = {A_MF_TRI, NB, NB, NM,
+         A_MF_TRI, NB, NM, NS,
+         A_MF_TRI, NM, NS, ZO,
+         A_MF_TRI, NS, ZO, PS,
+         A_MF_TRI, ZO, PS, PM,
+         A_MF_TRI, PS, PM, PB,
+         A_MF_TRI, PM, PB, PB,
+         A_MF_NUL},
+#undef S
+#define S 0.8F
+  .mec = {A_MF_TRI, NB, NB, NM,
+          A_MF_TRI, NB, NM, NS,
+          A_MF_TRI, NM, NS, ZO,
+          A_MF_TRI, NS, ZO, PS,
+          A_MF_TRI, ZO, PS, PM,
+          A_MF_TRI, PS, PM, PB,
+          A_MF_TRI, PM, PB, PB,
+          A_MF_NUL},
+#undef S
+#define S 20000
+  .mkp = {NB, NB, NM, NM, NS, ZO, ZO,
+          NB, NB, NM, NS, NS, ZO, PS,
+          NM, NM, NM, NS, ZO, PS, PS,
+          NM, NM, NS, ZO, PS, PM, PM,
+          NS, NS, ZO, PS, PS, PM, PM,
+          NS, ZO, PS, PM, PM, PM, PB,
+          ZO, ZO, PM, PM, PM, PB, PB},
+#undef S
+#define S 100
+  .mki = {PB, PB, PM, PM, PS, ZO, ZO,
+          PB, PB, PM, PS, PS, ZO, ZO,
+          PB, PM, PS, PS, ZO, NS, NS,
+          PM, PM, PS, ZO, NS, NM, NM,
+          PM, PS, ZO, NS, NS, NM, NB,
+          ZO, ZO, NS, NS, NM, NB, NB,
+          ZO, ZO, NS, NM, NM, NB, NB},
+#undef S
+#define S 30
+  .mkd = {NS, PS, PB, PB, PB, PM, NS,
+          NS, PS, PB, PM, PM, PS, ZO,
+          ZO, PS, PM, PM, PS, PS, ZO,
+          ZO, PS, PS, PS, PS, PS, ZO,
+          ZO, ZO, ZO, ZO, ZO, ZO, ZO,
+          NB, NS, NS, NS, NS, NS, NB,
+          NB, NM, NM, NM, NS, NS, NB},
+#undef S
+#undef NB
+#undef NM
+#undef NS
+#undef ZO
+#undef PS
+#undef PM
+#undef PB
+};
 
-void pid4_out(pid4_s *ctx)
+void mecanum_odometer_nagtive(float *x, float *y, float *w)
 {
-  for (int i = 0; i < 4; ++i)
-  {
-    float const e = motor[i].write - motor[i].speed;
-    float const sum = ctx->ki * e;
-    /* when the limit of integration is exceeded or */
-    /* the direction of integration is the same, the integration stops. */
-    if ((-ctx->summax < ctx->sum[i] && ctx->sum[i] < ctx->summax) || ctx->sum[i] * sum < 0)
-    {
-      /* sum = K_i \sum^k_{i=0} e(i) */
-      ctx->sum[i] += sum;
-    }
-    /* avoid derivative kick, fdb[k-1]-fdb[k] */
-    /* out = K_p e(k) + sum + K_d [fdb(k-1)-fdb(k)] */
-    ctx->out[i] = ctx->kp * e + ctx->sum[i] + ctx->kd * (ctx->fdb[i] - motor[i].speed);
-    /* output limiter */
-    if (ctx->outmax < ctx->out[i])
-    {
-      ctx->out[i] = ctx->outmax;
-    }
-    else if (ctx->out[i] < -ctx->outmax)
-    {
-      ctx->out[i] = -ctx->outmax;
-    }
-    /* cache data */
-    ctx->fdb[i] = motor[i].speed;
-    ctx->e[i] = e;
-  }
+  *x = (motor.total[0] - motor.total[1] - motor.total[2] + motor.total[3]) * 0.23561944901923448F / (4 * 13 * 30) * 0.25F;
+  *y = (motor.total[0] + motor.total[1] - motor.total[2] - motor.total[3]) * 0.23561944901923448F / (4 * 13 * 30) * 0.25F;
+  *w = (motor.total[0] + motor.total[1] + motor.total[2] + motor.total[3]) * 0.23561944901923448F / (4 * 13 * 30) * 1.25F;
 }
 
-void mecanum_odometer(float *x, float *y, float *w)
+void mecanum_odometer_postive(float x, float y, float w)
 {
-  *x = (motor[0].total - motor[1].total - motor[2].total + motor[3].total) * 0.23561944901923448F / (4 * 13 * 30) * 0.25F;
-  *y = (motor[0].total + motor[1].total - motor[2].total - motor[3].total) * 0.23561944901923448F / (4 * 13 * 30) * 0.25F;
-  *w = (motor[0].total + motor[1].total + motor[2].total + motor[3].total) * 0.23561944901923448F / (4 * 13 * 30) * 1.25F;
+  motor.total[0] = (+x + y + w * 0.2F) * (4 * 13 * 30) / 0.23561944901923448F;
+  motor.total[1] = (-x + y + w * 0.2F) * (4 * 13 * 30) / 0.23561944901923448F;
+  motor.total[2] = (-x - y + w * 0.2F) * (4 * 13 * 30) / 0.23561944901923448F;
+  motor.total[3] = (+x - y + w * 0.2F) * (4 * 13 * 30) / 0.23561944901923448F;
 }
 
 void mecanum_nagtive(float *x, float *y, float *w)
 {
-  *x = (motor[0].speed - motor[1].speed - motor[2].speed + motor[3].speed) * 0.25F;
-  *y = (motor[0].speed + motor[1].speed - motor[2].speed - motor[3].speed) * 0.25F;
-  *w = (motor[0].speed + motor[1].speed + motor[2].speed + motor[3].speed) * 1.25F;
+  *x = (motor.speed[0] - motor.speed[1] - motor.speed[2] + motor.speed[3]) * 0.25F;
+  *y = (motor.speed[0] + motor.speed[1] - motor.speed[2] - motor.speed[3]) * 0.25F;
+  *w = (motor.speed[0] + motor.speed[1] + motor.speed[2] + motor.speed[3]) * 1.25F;
 }
 
 void mecanum_postive(float x, float y, float w)
 {
-  motor[0].write = +x + y + w * 0.2;
-  motor[1].write = -x + y + w * 0.2;
-  motor[2].write = -x - y + w * 0.2;
-  motor[3].write = +x - y + w * 0.2;
+  motor.write[0] = +x + y + w * 0.2F;
+  motor.write[1] = -x + y + w * 0.2F;
+  motor.write[2] = -x - y + w * 0.2F;
+  motor.write[3] = +x - y + w * 0.2F;
+}
+
+void mecanum_calibrate(void)
+{
+  motor.count[0] = __HAL_TIM_GET_COUNTER(&htim2);
+  motor.count[1] = __HAL_TIM_GET_COUNTER(&htim3);
+  motor.count[2] = __HAL_TIM_GET_COUNTER(&htim4);
+  motor.count[3] = __HAL_TIM_GET_COUNTER(&htim5);
 }
 
 void motor_set_pwm(int16_t m1, int16_t m2, int16_t m3, int16_t m4)
@@ -144,32 +204,7 @@ void motor_set_pwm(int16_t m1, int16_t m2, int16_t m3, int16_t m4)
 #undef MOTOR_SET
 }
 
-static pid4_s pid4 = {
-  .outmax = 10000,
-  .summax = 10000,
-  .kp = 50000,
-  .ki = 500,
-  .kd = 0,
-};
-
-static uint16_t M0_count = 0;
-static uint16_t M1_count = 0;
-static uint16_t M2_count = 0;
-static uint16_t M3_count = 0;
-void mecanum_calibrate(void)
-{
-  motor[0].total = 0;
-  motor[1].total = 0;
-  motor[2].total = 0;
-  motor[3].total = 0;
-  M0_count = __HAL_TIM_GET_COUNTER(&htim2);
-  M1_count = __HAL_TIM_GET_COUNTER(&htim3);
-  M2_count = __HAL_TIM_GET_COUNTER(&htim4);
-  M3_count = __HAL_TIM_GET_COUNTER(&htim5);
-}
-
 static void exec_encoder(void *argv)
-
 {
   (void)argv;
 
@@ -178,17 +213,17 @@ static void exec_encoder(void *argv)
   do                                               \
   {                                                \
     uint16_t count = __HAL_TIM_GET_COUNTER(&htim); \
-    motor[id].delta = M##id##_count - count;       \
-    if (motor[id].delta < -0x8000)                 \
+    motor.delta[id] = motor.count[id] - count;     \
+    if (motor.delta[id] < -0x8000)                 \
     {                                              \
-      motor[id].delta += 0x10000;                  \
+      motor.delta[id] += 0x10000;                  \
     }                                              \
-    else if (0x8000 < motor[id].delta)             \
+    else if (0x8000 < motor.delta[id])             \
     {                                              \
-      motor[id].delta -= 0x10000;                  \
+      motor.delta[id] -= 0x10000;                  \
     }                                              \
-    motor[id].total += motor[id].delta;            \
-    M##id##_count = count;                         \
+    motor.total[id] += motor.delta[id];            \
+    motor.count[id] = count;                       \
   } while (0)
   ENCODER_READ(0, htim2);
   ENCODER_READ(1, htim3);
@@ -200,7 +235,7 @@ static void exec_encoder(void *argv)
 #define ENCODER_CALC(id)                                                    \
   do                                                                        \
   {                                                                         \
-    motor[id].speed = motor[id].delta * 23.56194490192345F / (4 * 13 * 30); \
+    motor.speed[id] = motor.delta[id] * 23.56194490192345F / (4 * 13 * 30); \
   } while (0)
   ENCODER_CALC(0);
   ENCODER_CALC(1);
@@ -220,18 +255,24 @@ static void exec_encoder(void *argv)
     else if (exec->io[1] == 0xFF && exec->io[2] == 0xFE)
     {
       mecanum_calibrate();
+      mecanum_odometer_postive(*(int16_t *)(exec->io + 3) * 0.001F,
+                               *(int16_t *)(exec->io + 5) * 0.001F,
+                               *(int16_t *)(exec->io + 7) * 0.001F);
     }
     else if (exec->io[1] == 0xFF && exec->io[2] == 0xFD)
     {
-      pid4.kp = *(uint16_t *)(exec->io + 3);
-      pid4.ki = *(uint16_t *)(exec->io + 5);
-      pid4.kd = *(uint16_t *)(exec->io + 7);
+      a_pid_zero(&chassis.ctx.pid);
+      a_pid_kpid(&chassis.ctx.pid,
+                 *(uint16_t *)(exec->io + 3),
+                 *(uint16_t *)(exec->io + 5),
+                 *(uint16_t *)(exec->io + 7));
     }
     CLEAR_BIT(exec->uart, IO_RXEN_MSK);
   }
 
-  pid4_out(&pid4);
-  motor_set_pwm(pid4.out[0], pid4.out[1], pid4.out[2], pid4.out[3]);
+  float const *pwm = a_pid_outp(&chassis.ctx.pid, motor.write, motor.speed);
+  // float const *pwm = a_fpid_outp(&chassis.ctx, motor.write, motor.speed);
+  motor_set_pwm(pwm[0], pwm[1], pwm[2], pwm[3]);
 
   float x, y, w;
   mecanum_nagtive(&x, &y, &w);
@@ -239,19 +280,19 @@ static void exec_encoder(void *argv)
   *(int16_t *)(buffer + 2) = x * 1000;
   *(int16_t *)(buffer + 4) = y * 1000;
   *(int16_t *)(buffer + 6) = w * 1000;
-  mecanum_odometer((float *)(buffer + 8), (float *)(buffer + 12), (float *)(buffer + 16));
+  mecanum_odometer_nagtive((float *)(buffer + 8), (float *)(buffer + 12), (float *)(buffer + 16));
   uart_dma_tx(&huart1, buffer, 20);
 }
 
 static void exec_io(void *argv)
 {
-  // io_printf("%g,%g,%g,%g\n", pid4.e[0], pid4.e[1], pid4.e[2], pid4.e[3]);
-  // io_printf("%g,%g,%g,%g\n", pid4.sum[0], pid4.sum[1], pid4.sum[2], pid4.sum[3]);
-  // io_printf("%g,%g,%g,%g\n", pid4.out[0], pid4.out[1], pid4.out[2], pid4.out[3]);
-  // io_printf("%g,%g,%g,%g\n", motor[0].write, motor[1].write, motor[2].write, motor[3].write);
-  // io_printf("%g,%g,%g,%g\n", motor[0].speed, motor[1].speed, motor[2].speed, motor[3].speed);
-  // io_printf("%i,%i,%i,%i\n", motor[0].delta, motor[1].delta, motor[2].delta, motor[3].delta);
-  // io_printf("%i,%i,%i,%i\n", motor[0].total, motor[1].total, motor[2].total, motor[3].total);
+  // io_printf("%g,%g,%g,%g\n", chassis.e[0], chassis.e[1], chassis.e[2], chassis.e[3]);
+  // io_printf("%g,%g,%g,%g\n", chassis.sum[0], chassis.sum[1], chassis.sum[2], chassis.sum[3]);
+  // io_printf("%g,%g,%g,%g\n", chassis.out[0], chassis.out[1], chassis.out[2], chassis.out[3]);
+  // io_printf("%g,%g,%g,%g\n", motor.write[0], motor.write[1], motor.write[2], motor.write[3]);
+  // io_printf("%g,%g,%g,%g\n", motor.speed[0], motor.speed[1], motor.speed[2], motor.speed[3]);
+  // io_printf("%i,%i,%i,%i\n", motor.delta[0], motor.delta[1], motor.delta[2], motor.delta[3]);
+  // io_printf("%i,%i,%i,%i\n", motor.total[0], motor.total[1], motor.total[2], motor.total[3]);
   // float x, y, w;
   // mecanum_nagtive(&x, &y, &w);
   // mecanum_odometer(&x, &y, &w);
@@ -265,11 +306,24 @@ void timeslice_init(void)
 {
   static timeslice_s led[1];
   timeslice_cron(led, exec_led, 0, 500);
-  HAL_GPIO_WritePin(LEDR_GPIO_Port, LEDR_Pin, GPIO_PIN_SET);
   timeslice_join(led);
+
+  HAL_GPIO_WritePin(LEDR_GPIO_Port, LEDR_Pin, GPIO_PIN_SET);
 
   static timeslice_s encoder[1];
   timeslice_cron(encoder, exec_encoder, 0, 10);
+  timeslice_join(encoder);
+
+  a_pid_pos(a_pid_init(&chassis.ctx.pid, 0.01F, -10000, 10000), 2000);
+  a_pid_chan(&chassis.ctx.pid, 4, chassis.out, chassis.fdb, chassis.sum, chassis.ec, chassis.e);
+  a_pid_kpid(&chassis.ctx.pid, 0x10000, 0, 0);
+
+  // a_fpid_init(&chassis.ctx, 0.01F, 7, chassis.me, chassis.mec, chassis.mkp, chassis.mki, 0, -10000, 10000);
+  // a_fpid_chan(&chassis.ctx, 4, chassis.out, chassis.fdb, chassis.sum, chassis.ec, chassis.e);
+  // a_fpid_pos(a_fpid_buff(&chassis.ctx, chassis.idx, chassis.val), 2000);
+  // a_fpid_kpid(&chassis.ctx, 0xFFFF, 655.35, 0);
+  // a_fpid_kpid(&chassis.ctx, 60000, 1500, 0);
+
   HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_2);
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_1);
@@ -282,7 +336,6 @@ void timeslice_init(void)
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-  timeslice_join(encoder);
 
   static timeslice_s io[1];
   timeslice_cron(io, exec_io, 0, 100);
